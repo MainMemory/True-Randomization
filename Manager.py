@@ -818,6 +818,16 @@ def apply_default_tweaks():
     #datatable["PB_DT_DropRateMaster"]["TestHammerknuckle"]["RareItemQuantity"] = 1
     #datatable["PB_DT_DropRateMaster"]["TestHammerknuckle"]["RareItemRate"]     = 100.0
     #datatable["PB_DT_DropRateMaster"]["N2001_Shard"]["ShardId"] = "AccelWorld"
+    music_list = []
+    for room in datatable["PB_DT_RoomMaster"]:
+        if datatable["PB_DT_RoomMaster"][room]["BgmID"] and not datatable["PB_DT_RoomMaster"][room]["BgmID"] in music_list:
+            music_list.append(datatable["PB_DT_RoomMaster"][room]["BgmID"])
+    new_list = copy.deepcopy(music_list)
+    random.shuffle(new_list)
+    music_replacement = dict(zip(music_list, new_list))
+    for room in datatable["PB_DT_RoomMaster"]:
+        if datatable["PB_DT_RoomMaster"][room]["BgmID"]:
+            datatable["PB_DT_RoomMaster"][room]["BgmID"] = music_replacement[datatable["PB_DT_RoomMaster"][room]["BgmID"]]
 
 def set_randomizer_events():
     #Some events need to be triggered by default to avoid conflicts or tedium
