@@ -213,12 +213,12 @@ def rand_equip_unbound():
                 else:
                     Manager.datatable["PB_DT_ArmorMaster"][entry][stat] = -random.randint(1, int(max_value*1.2)*2)
     #Shovel Armor's attack
-    Manager.datatable["PB_DT_CoordinateParameter"]["ShovelArmorWeaponAtk"]["Value"] = Utility.random_weighted(50, 0, 400, 1, global_stat_wheight)
+    Manager.datatable["PB_DT_CoordinateParameter"]["ShovelArmorWeaponAtk"]["Value"] = Utility.random_weighted(50, 0, 400, 1, global_stat_weight)
 
 def rand_weapon_unbound():
     #Weapon stats are completely random
     for entry in Manager.datatable["PB_DT_WeaponMaster"]:
-        Manager.datatable["PB_DT_WeaponMaster"][entry]["MeleeAttack"] = Utility.random_weighted(50, 0, 400, 1, global_stat_wheight)
+        Manager.datatable["PB_DT_WeaponMaster"][entry]["MeleeAttack"] = Utility.random_weighted(50, 0, 400, 1, global_stat_weight)
         #Update magic attack for weapons with elemental attributes
         if Manager.datatable["PB_DT_WeaponMaster"][entry]["MagicAttack"] != 0:
             Manager.datatable["PB_DT_WeaponMaster"][entry]["MagicAttack"] = Manager.datatable["PB_DT_WeaponMaster"][entry]["MeleeAttack"]
