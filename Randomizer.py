@@ -1039,12 +1039,12 @@ class MainWindow(QGraphicsView):
         self.check_box_28.setToolTip("Completely randomize the stats of all weapons and pieces of\nequipment.")
         self.check_box_28.stateChanged.connect(self.check_box_28_changed)
         center_box_5_layout.addWidget(self.check_box_28, 1, 0)
-        main_widget_to_setting[self.check_box_28] = 0x1000000
+        main_widget_to_param[self.check_box_28] = 0x1000000
 
         self.check_box_9 = QCheckBox("Cheat Gear Stats")
         self.check_box_9.setToolTip("Completely randomize the stats of the weapons, headgears\nand accessories that are originally obtained via cheatcodes.")
         self.check_box_9.stateChanged.connect(self.check_box_9_changed)
-        center_box_5_layout.addWidget(self.check_box_9, 1, 0)
+        center_box_5_layout.addWidget(self.check_box_9, 2, 0)
         main_widget_to_param[self.check_box_9] = 0x001000
 
         self.check_box_25 = QCheckBox("Enemy Locations")
@@ -1701,13 +1701,13 @@ class MainWindow(QGraphicsView):
     def check_box_28_changed(self):
         if self.check_box_28.isChecked():
             config.set("EquipmentRandomization", "bUnboundGearStats", "true")
-            self.add_main_setting(self.check_box_28)
+            self.add_main_param(self.check_box_28)
             self.check_box_28.setStyleSheet("color: " + equip_color)
             if self.check_box_23.isChecked() and self.check_box_9.isChecked():
                 self.box_5.setStyleSheet("color: " + equip_color)
         else:
             config.set("EquipmentRandomization", "bUnboundGearStats", "false")
-            self.remove_main_setting(self.check_box_28)
+            self.remove_main_param(self.check_box_28)
             self.check_box_28.setStyleSheet("color: #ffffff")
             self.box_5.setStyleSheet("color: #ffffff")
         self.fix_background_glitch()
