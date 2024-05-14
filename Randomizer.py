@@ -389,7 +389,7 @@ class Generate(QThread):
             Equipment.randomize_cheat_weapon_power()
         
         if config.getboolean("EquipmentRandomization", "bUnboundGearStats"):
-            random.seed(self.seed)
+            random.seed(self.selected_seed)
             Equipment.rand_equip_unbound()
             Equipment.rand_weapon_unbound()
         
