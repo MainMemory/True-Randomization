@@ -1751,18 +1751,17 @@ class MainWindow(QGraphicsView):
         self.matches_preset()
 
     def check_box_28_changed(self):
-        if self.check_box_28.isChecked():
-            config.set("EquipmentRandomization", "bUnboundGearStats", "true")
+        checked = self.check_box_28.isChecked()
+        config.set("EquipmentRandomization", "bUnboundGearStats", str(checked).lower())
+        if checked:
             self.add_main_param(self.check_box_28)
-            self.check_box_28.setStyleSheet("color: " + equip_color)
+            self.check_box_28.setStyleSheet(f"color: {equip_color}")
             if self.check_box_23.isChecked() and self.check_box_9.isChecked():
-                self.box_5.setStyleSheet("color: " + equip_color)
+                self.center_box_5.setStyleSheet(f"color: {equip_color}")
         else:
-            config.set("EquipmentRandomization", "bUnboundGearStats", "false")
             self.remove_main_param(self.check_box_28)
             self.check_box_28.setStyleSheet("color: #ffffff")
-            self.box_5.setStyleSheet("color: #ffffff")
-        self.fix_background_glitch()
+            self.center_box_5.setStyleSheet("color: #ffffff")
         self.matches_preset()
 
     def check_box_9_changed(self):
