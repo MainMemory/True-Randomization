@@ -1,14 +1,6 @@
 from System import *
-import Manager
 import Item
-import Shop
-import Library
-import Shard
-import Equipment
-import Enemy
 import Room
-import Graphic
-import Sound
 import Utility
 
 class CheckType(Enum):
@@ -143,7 +135,7 @@ def satisfies_requirement(requirement):
             break
     return check
 
-def candle_logic():
+def process_key_logic():
     #Simplified version of the function from Item
     move_through_rooms()
     while True:
@@ -177,8 +169,8 @@ def move_through_rooms():
         for door in copy.deepcopy(current_available_doors):
             current_available_doors.remove(door)
             room = Item.get_door_room(door)
-            if room in constant["BloodlessRoomRequirement"]:
-                for check, requirement in constant["BloodlessRoomRequirement"][room][door].items():
+            if room in constant["BloodlessRequirement"]:
+                for check, requirement in constant["BloodlessRequirement"][room][door].items():
                     #Don't automatically unlock certain checks
                     if check in special_check_to_requirement:
                         if not check in special_check_to_door:
@@ -198,7 +190,7 @@ def move_through_rooms():
         for special_check in special_check_to_requirement:
             if special_check in special_check_to_door and special_check_to_requirement[special_check]():
                 for door in special_check_to_door[special_check]:
-                    analyse_check(special_check, constant["BloodlessRoomRequirement"][Item.get_door_room(door)][door][special_check])
+                    analyse_check(special_check, constant["BloodlessRequirement"][Item.get_door_room(door)][door][special_check])
                 del special_check_to_door[special_check]
         #Stop if no more doors are found
         if not current_available_doors:
@@ -280,7 +272,7 @@ def get_check_type(check):
     return CheckType.Door
 
 def place_next_key(chosen_item):
-    if should_place_key_in(current_available_candles):
+    if random.random() < logic_complexity:
         try:
             chosen_candle = pick_key_candle(current_available_candles)
         except IndexError:
@@ -288,7 +280,7 @@ def place_next_key(chosen_item):
                 chosen_candle = pick_key_candle(previous_available_candles)
             except IndexError:
                 chosen_candle = pick_key_candle(all_available_candles)
-    elif should_place_key_in(previous_available_candles):
+    elif random.random() < logic_complexity:
         try:
             chosen_candle = pick_key_candle(previous_available_candles)
         except IndexError:
@@ -301,9 +293,6 @@ def place_next_key(chosen_item):
     reset_available_checks()
     check_lifted_obstacles()
     move_through_rooms()
-
-def should_place_key_in(list):
-    return random.random() < (1 - 1/(1+len(list)))*logic_complexity
 
 def pick_key_candle(available_candle):
     possible_candle = []
@@ -325,7 +314,7 @@ def final_boss_available():
     return "N1013_Bael" in all_available_bosses
 
 def randomize_bloodless_candles():
-    candle_logic()
+    process_key_logic()
     #Key abilities
     for item in key_ability_to_location:
         ability_to_location[item] = key_ability_to_location[item]
@@ -345,7 +334,7 @@ def update_shard_candles():
         data_name = "UnlockAbilityType"
         old_value = f"EPBBloodlessAbilityType::{candle_to_ability[ability_to_location[item]]}"
         new_value = f"EPBBloodlessAbilityType::{item}"
-        Manager.search_and_replace_string(file_name, class_name, data_name, old_value, new_value)
+        Utility.search_and_replace_string(file_name, class_name, data_name, old_value, new_value)
 
 def increase_starting_stats():
     #Give Bloodless 4 of each stat to start with

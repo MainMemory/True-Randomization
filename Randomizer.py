@@ -1,5 +1,6 @@
 import Manager
 import Item
+import Classic
 import Shop
 import Library
 import Shard
@@ -18,8 +19,6 @@ from PySide6.QtWidgets import*
 import os
 import sys
 import shutil
-import copy
-import json
 import glob
 import random
 import zipfile
@@ -29,6 +28,7 @@ import configparser
 import traceback
 import psutil
 import vdf
+import textwrap
 
 from enum import Enum
 
@@ -40,9 +40,6 @@ def resource_path(relative_path):
     except Exception:
         base_path = os.path.abspath(".")
     return os.path.join(base_path, relative_path)
-
-steam_id = "Steam"
-gog_id = "GOG Games"
 
 item_color    = "#ff8080"
 shop_color    = "#ffff80"
@@ -178,6 +175,7 @@ class DLCType(Enum):
     Succubus  = 2
     MagicGirl = 3
     Japanese  = 4
+    Classic2  = 5
 
 #Threads
 
@@ -206,14 +204,6 @@ class Generate(QThread):
         current = 0
         self.signaller.progress.emit(current)
         
-        #Check DLCs
-        
-        if not DLCType.IGA in self.owned_dlc:
-            for file in list(Manager.file_to_path):
-                if "DLC_0002" in Manager.file_to_path[file]:
-                    del Manager.file_to_path[file]
-                    del Manager.file_to_type[file]
-        
         #Mod directory
         
         if os.path.isdir(Manager.mod_dir):
@@ -221,20 +211,21 @@ class Generate(QThread):
         for directory in list(Manager.file_to_path.values()):
             if not os.path.isdir(f"{Manager.mod_dir}\\{directory}"):
                 os.makedirs(f"{Manager.mod_dir}\\{directory}")
-        if not os.path.isdir(f"{Manager.mod_dir}\\Core\\UI\\Dialog\\Data\\LipSync"):
-            os.makedirs(f"{Manager.mod_dir}\\Core\\UI\\Dialog\\Data\\LipSync")
         
         #Log directory
         
         if os.path.isdir("Spoiler"):
-            shutil.rmtree("Spoiler")
-        os.makedirs("Spoiler")
+            for file in os.listdir("Spoiler"):
+                os.remove(f"Spoiler\\{file}")
+        else:
+            os.makedirs("Spoiler")
         
         #Open files
         
         self.progress_bar.setLabelText("Loading data...")
         
         Manager.init()
+        Utility.init()
         Manager.load_game_data()
         Manager.load_constant()
         current += 1
@@ -263,15 +254,17 @@ class Generate(QThread):
         Graphic.init()
         Sound.init()
         Bloodless.init()
-        Utility.init()
+        Classic.init()
         miriam_color = None
         zangetsu_color = None
         
         #Apply parameters
         
         Item.set_logic_complexity(config.getint("ItemRandomization", "iOverworldPoolComplexity"))
+        Classic.set_logic_complexity(config.getint("ItemRandomization", "iOverworldPoolComplexity"))
         Item.set_shop_event_weight(config.getint("ItemRandomization", "iShopPoolWeight"))
         Shop.set_shop_price_weight(config.getint("ShopRandomization", "iItemCostAndSellingPriceWeight"))
+        Classic.set_shop_price_weight(config.getint("ShopRandomization", "iItemCostAndSellingPriceWeight"))
         Library.set_requirement_weight(config.getint("LibraryRandomization", "iMapRequirementsWeight"))
         Shard.set_shard_power_weight(config.getint("ShardRandomization", "iShardPowerAndMagicCostWeight"))
         Equipment.set_global_stat_weight(config.getint("EquipmentRandomization", "iGlobalGearStatsWeight"))
@@ -296,6 +289,8 @@ class Generate(QThread):
         Manager.apply_default_tweaks()
         Shard.set_default_shard_power()
         Enemy.get_original_enemy_stats()
+        if DLCType.Classic2 in self.owned_dlc:
+            Classic.apply_default_tweaks()
         
         #Apply cheats
         
@@ -374,7 +369,12 @@ class Generate(QThread):
         
         if config.getboolean("ItemRandomization", "bOverworldPool"):
             random.seed(self.selected_seed)
-            Item.randomize_classic_mode_drops()
+            Classic.randomize_candle_drops()
+        
+        if config.getboolean("ItemRandomization", "bOverworldPool") and DLCType.Classic2 in self.owned_dlc:
+            random.seed(self.selected_seed)
+            Classic.randomize_item_pool()
+            Classic.randomize_shop_pool()
         
         if config.getboolean("ItemRandomization", "bOverworldPool") or config.getboolean("EnemyRandomization", "bEnemyLocations") or self.selected_map:
             Manager.remove_fire_shard_requirement()
@@ -405,6 +405,10 @@ class Generate(QThread):
         if config.getboolean("ShopRandomization", "bItemCostAndSellingPrice"):
             random.seed(self.selected_seed)
             Shop.randomize_shop_prices(config.getboolean("ShopRandomization", "bScaleSellingPriceWithCost"))
+        
+        if config.getboolean("ShopRandomization", "bItemCostAndSellingPrice") and DLCType.Classic2 in self.owned_dlc:
+            random.seed(self.selected_seed)
+            Classic.randomize_shop_prices(config.getboolean("ShopRandomization", "bScaleSellingPriceWithCost"))
         
         if config.getboolean("LibraryRandomization", "bMapRequirements"):
             random.seed(self.selected_seed)
@@ -471,6 +475,10 @@ class Generate(QThread):
             random.seed(self.selected_seed)
             Sound.randomize_dialogues()
         
+        if config.getboolean("SoundRandomization", "bDialogues") and DLCType.Classic2 in self.owned_dlc:
+            random.seed(self.selected_seed)
+            Classic.randomize_dialogues()
+        
         if config.getboolean("SoundRandomization", "bBackGroundMusic"):
             random.seed(self.selected_seed)
             Sound.randomize_music()
@@ -479,6 +487,8 @@ class Generate(QThread):
         if config.getboolean("GameDifficulty", "bNormal"):
             Manager.set_single_difficulty("Normal")
             Enemy.update_brv_damage("Normal")
+            if DLCType.Classic2 in self.owned_dlc:
+                Classic.set_easy_mode()
         elif config.getboolean("GameDifficulty", "bHard"):
             Manager.set_single_difficulty("Hard")
             Manager.set_default_entry_name("NIGHTMARE")
@@ -492,6 +502,8 @@ class Generate(QThread):
             Enemy.update_brv_boss_speed("Nightmare")
             Enemy.update_brv_damage("Nightmare")
             Shard.rescale_level_based_shards()
+            if DLCType.Classic2 in self.owned_dlc:
+                Classic.set_hard_mode()
         
         #Set custom NG+ levels
         if config.getboolean("SpecialMode", "bCustomNG"):
@@ -528,10 +540,11 @@ class Generate(QThread):
         
         #Write the spoiler logs
         if config.getboolean("ExtraRandomization", "bBloodlessCandles"):
-            Manager.set_default_entry_name("BLOODLESS")
             Manager.write_log("KeyLocation", Bloodless.create_log(self.selected_seed, self.selected_map))
         elif config.getboolean("ItemRandomization", "bOverworldPool"):
             Manager.write_log("KeyLocation", Item.create_log(self.selected_seed, self.selected_map))
+        if config.getboolean("ItemRandomization", "bOverworldPool") and DLCType.Classic2 in self.owned_dlc:
+            Manager.write_log("Classic2Keys", Classic.create_log())
         
         if config.getboolean("LibraryRandomization", "bMapRequirements") or config.getboolean("LibraryRandomization", "bTomeAppearance"):
             Manager.write_log("LibraryTomes", Library.create_log())
@@ -803,16 +816,18 @@ class Import(QThread):
         if os.path.isdir(Manager.asset_dir) and self.asset_list == list(Manager.file_to_path):
             shutil.rmtree(Manager.asset_dir)
         
-        for asset in self.asset_list:
-            output_path = os.path.abspath("")
-            
-            root = os.getcwd()
-            os.chdir("Tools\\UModel")
-            os.system("cmd /c umodel_64.exe -path=\"" + config.get("Misc", "sGamePath") + "\\BloodstainedRotN\\Content\\Paks\" -out=\"" + output_path + "\" -save \"" + Manager.asset_dir + "\\" + Manager.file_to_path[asset] + "\\" + asset.split("(")[0] + "\"")
-            os.chdir(root)
-            
-            current += 1
+        #There's a limit of around 8000 characters per command, split the list of packages into multiple batches of maximum 7500 characters
+        packages = " ".join([f"-pkg=\"{Manager.asset_dir}\\{Manager.file_to_path[asset]}\\{asset}\"" for asset in self.asset_list])
+        batches = textwrap.wrap(packages, 7500)
+        output_path = os.path.abspath("")
+        
+        root = os.getcwd()
+        os.chdir("Tools\\UModel")
+        for batch in batches:
+            os.system("cmd /c umodel_64.exe -path=\"" + config.get("Misc", "sGamePath") + f"\\BloodstainedRotN\\Content\\Paks\" -out=\"{output_path}\" -save {batch}")
+            current += batch.count(" ") + 1
             self.signaller.progress.emit(current)
+        os.chdir(root)
         
         self.signaller.finished.emit()
 
@@ -824,7 +839,8 @@ class MainWindow(QGraphicsView):
         sys.excepthook = self.exception_hook
         self.setEnabled(False)
         self.init()
-        self.check_for_updates()
+        if not self.check_for_updates():
+            self.check_for_resolution()
 
     def init(self):
         
@@ -997,7 +1013,6 @@ class MainWindow(QGraphicsView):
         modified_file_label_right.addWidget(modified_files["Blueprint"]["Label"])
         
         discord_label = QLabel()
-        discord_label.setStyleSheet("border: 2px solid transparent")
         discord_label.setText("<a href=\"https://discord.gg/nUbFA7MEeU\"><font face=Cambria color=#0080ff>Discord</font></a>")
         discord_label.setAlignment(Qt.AlignRight)
         discord_label.setOpenExternalLinks(True)
@@ -1007,7 +1022,7 @@ class MainWindow(QGraphicsView):
         #Checkboxes
 
         self.check_box_1 = QCheckBox("Overworld Pool")
-        self.check_box_1.setToolTip("Randomize all items and shards found in the overworld, now with\nnew improved logic. Everything you pick up will be 100% random\nso say goodbye to the endless sea of fried fish.")
+        self.check_box_1.setToolTip("Randomize all items and shards found in the overworld, now with\nnew improved logic. Everything you pick up will be 100% random\nso say goodbye to the endless sea of fried fish. Also affects items in\nClassic Mode 1 & 2")
         self.check_box_1.stateChanged.connect(self.check_box_1_changed)
         center_box_1_layout.addWidget(self.check_box_1, 0, 0)
         main_widget_to_param[self.check_box_1] = 0x000001
@@ -1037,13 +1052,13 @@ class MainWindow(QGraphicsView):
         main_widget_to_param[self.check_box_18] = 0x000010
 
         self.check_box_3 = QCheckBox("Item Cost And Selling Price")
-        self.check_box_3.setToolTip("Randomize the cost and selling price of every item in the shop.")
+        self.check_box_3.setToolTip("Randomize the cost and selling price of every item in the shop.\nAlso affects prices in Classic Mode 2")
         self.check_box_3.stateChanged.connect(self.check_box_3_changed)
         center_box_2_layout.addWidget(self.check_box_3, 0, 0)
         main_widget_to_param[self.check_box_3] = 0x000020
 
         self.check_box_4 = QCheckBox("Scale Selling Price With Cost")
-        self.check_box_4.setToolTip("Make the selling price scale with the item's random cost.")
+        self.check_box_4.setToolTip("Make the selling price scale with the item's random cost.\nAlso affects coin/remnant ratio in Classic Mode 2")
         self.check_box_4.stateChanged.connect(self.check_box_4_changed)
         center_box_2_layout.addWidget(self.check_box_4, 1, 0)
         main_widget_to_param[self.check_box_4] = 0x000040
@@ -1329,13 +1344,11 @@ class MainWindow(QGraphicsView):
         
         #Spin boxes
         
-        config.set("SpecialMode", "iCustomNGLevel", str(min(max(config.getint("SpecialMode", "iCustomNGLevel"), 1), 99)))
-        
         self.custom_level_field = QSpinBox()
         self.custom_level_field.setToolTip("Level of all enemies.")
-        self.custom_level_field.setRange(1, 99)
-        self.custom_level_field.setValue(config.getint("SpecialMode", "iCustomNGLevel"))
         self.custom_level_field.valueChanged.connect(self.custom_level_field_changed)
+        self.custom_level_field.setValue(config.getint("SpecialMode", "iCustomNGLevel"))
+        self.custom_level_field.setRange(1, 99)
         self.custom_level_field.setVisible(False)
         center_box_17_layout.addWidget(self.custom_level_field, 1, 1)
         
@@ -1349,24 +1362,29 @@ class MainWindow(QGraphicsView):
         self.preset_drop_down.currentIndexChanged.connect(self.preset_drop_down_changed)
         center_box_12_layout.addWidget(self.preset_drop_down, 0, 0)
         
-        #Interface Settings
+        #Settings
         
         self.setting_window_layout = QVBoxLayout()
         
-        window_size_box_layout = QVBoxLayout()
-        window_size_box = QGroupBox("Window Size")
-        window_size_box.setLayout(window_size_box_layout)
-        self.setting_window_layout.addWidget(window_size_box)
+        window_size_layout = QHBoxLayout()
+        self.setting_window_layout.addLayout(window_size_layout)
+        
+        archi_name_label = QLabel("Window Size")
+        window_size_layout.addWidget(archi_name_label)
         
         self.window_size_drop_down = QComboBox()
         self.window_size_drop_down.addItem("720p")
         self.window_size_drop_down.addItem("900p")
         self.window_size_drop_down.addItem("1080p and above")
-        window_size_box_layout.addWidget(self.window_size_drop_down)
+        window_size_layout.addWidget(self.window_size_drop_down)
+        
+        setting_apply_layout = QHBoxLayout()
+        self.setting_window_layout.addLayout(setting_apply_layout)
         
         setting_apply_button = QPushButton("Apply")
         setting_apply_button.clicked.connect(self.setting_apply_button_clicked)
-        self.setting_window_layout.addWidget(setting_apply_button)
+        setting_apply_layout.addStretch(1)
+        setting_apply_layout.addWidget(setting_apply_button)
         
         #Seed
         
@@ -1442,6 +1460,54 @@ class MainWindow(QGraphicsView):
         outfit_confirm_button.clicked.connect(self.outfit_confirm_button_clicked)
         outfit_window_bottom.addStretch(1)
         outfit_window_bottom.addWidget(outfit_confirm_button)
+        
+        #Archipelago
+        
+        self.archi_window_layout = QVBoxLayout()
+
+        self.archi_check_box = QCheckBox("Enable Archipelago")
+        self.archi_window_layout.addWidget(self.archi_check_box)
+        
+        archi_name_layout = QHBoxLayout()
+        self.archi_window_layout.addLayout(archi_name_layout)
+        
+        archi_name_label = QLabel("Archipelago Name")
+        archi_name_layout.addWidget(archi_name_label)
+        
+        self.archi_name_field = QLineEdit()
+        archi_name_layout.addWidget(self.archi_name_field)
+        progression_layout = QHBoxLayout()
+        self.archi_window_layout.addLayout(progression_layout)
+        
+        progression_label = QLabel("Progression Balancing")
+        progression_layout.addWidget(progression_label)
+        
+        self.progression_field = QSpinBox()
+        self.progression_field.setRange(0, 99)
+        progression_layout.addWidget(self.progression_field)
+        
+        accessibility_layout = QHBoxLayout()
+        self.archi_window_layout.addLayout(accessibility_layout)
+        
+        accessibility_label = QLabel("Accessibility")
+        accessibility_layout.addWidget(accessibility_label)
+        
+        self.accessibility_drop_down = QComboBox()
+        self.accessibility_drop_down.addItem("Locations")
+        self.accessibility_drop_down.addItem("Items")
+        self.accessibility_drop_down.addItem("Minimal")
+        accessibility_layout.addWidget(self.accessibility_drop_down)
+
+        self.death_link_check_box = QCheckBox("Death Link")
+        self.archi_window_layout.addWidget(self.death_link_check_box)
+        
+        archi_apply_layout = QHBoxLayout()
+        self.archi_window_layout.addLayout(archi_apply_layout)
+        
+        archi_apply_button = QPushButton("Apply")
+        archi_apply_button.clicked.connect(self.archi_apply_button_clicked)
+        archi_apply_layout.addStretch(1)
+        archi_apply_layout.addWidget(archi_apply_button)
         
         #Text field
         
@@ -2294,7 +2360,7 @@ class MainWindow(QGraphicsView):
         
         if config.getboolean("ItemRandomization", "bOverworldPool"):
             random.seed(self.selected_seed)
-            Item.key_logic()
+            Item.process_key_logic()
         
         if config.getboolean("ExtraRandomization", "bBloodlessCandles"):
             random.seed(self.selected_seed)
@@ -2423,9 +2489,15 @@ class MainWindow(QGraphicsView):
         #Shantae is on by default
         dlc_list = [DLCType.Shantae]
         #Steam
-        if steam_id in config.get("Misc", "sGamePath"):
-            #Look through the Steam config files
-            steam_path = config.get("Misc", "sGamePath").split(steam_id)[0] + steam_id
+        if "steamapps" in config.get("Misc", "sGamePath"):
+            steam_path = os.path.abspath(os.path.join(config.get("Misc", "sGamePath"), "../../.."))
+            #Override the Steam path if the game path is on another drive
+            library_config_path = f"{steam_path}\\libraryfolder.vdf"
+            if os.path.isfile(library_config_path):
+                with open(library_config_path, "r", encoding="utf8") as file_reader:
+                    steam_exe_path = self.lowercase_vdf_dict(vdf.parse(file_reader))["libraryfolder"]["launcher"]
+                    steam_path = os.path.split(steam_exe_path)[0]
+            #Get user config
             user_config_path = f"{steam_path}\\config\\loginusers.vdf"
             if not os.path.isfile(user_config_path):
                 self.dlc_failure()
@@ -2438,6 +2510,7 @@ class MainWindow(QGraphicsView):
                 if user_config[user]["mostrecent"] == "1":
                     steam_user = int(user) - 76561197960265728
                     break
+            #Get local config
             local_config_path = f"{steam_path}\\userdata\\{steam_user}\\config\\localconfig.vdf"
             if not os.path.isfile(local_config_path):
                 self.dlc_failure()
@@ -2453,9 +2526,11 @@ class MainWindow(QGraphicsView):
                 dlc_list.append(DLCType.MagicGirl)
             if "2380802" in dlc_config:
                 dlc_list.append(DLCType.Japanese)
+            if "2380803" in dlc_config:
+                dlc_list.append(DLCType.Classic2)
             return dlc_list
         #GOG
-        if gog_id in config.get("Misc", "sGamePath"):
+        if "GOG Games" in config.get("Misc", "sGamePath"):
             #List the DLC IDs in the game path
             dlc_id_list = []
             for file in glob.glob(config.get("Misc", "sGamePath") + "\\*.hashdb"):
@@ -2470,6 +2545,8 @@ class MainWindow(QGraphicsView):
                 dlc_list.append(DLCType.MagicGirl)
             if "1255553972" in dlc_id_list:
                 dlc_list.append(DLCType.Japanese)
+            if "1229761293" in dlc_config:
+                dlc_list.append(DLCType.Classic2)
             return dlc_list
         #Installation is unknown
         self.dlc_failure()
@@ -2488,6 +2565,12 @@ class MainWindow(QGraphicsView):
         box.setText("Failed to retrieve DLC information from user installation. Proceeding without DLC.")
         box.exec()
     
+    def update_file_info(self):
+        for file in list(Manager.file_to_path):
+            if "DLC_0002" in Manager.file_to_path[file] and not DLCType.IGA in self.owned_dlc or "Classic2" in Manager.file_to_path[file] and not DLCType.Classic2 in self.owned_dlc:
+                del Manager.file_to_path[file]
+                del Manager.file_to_type[file]
+    
     def generate_button_clicked(self):
         #Check if path is valid
         
@@ -2497,6 +2580,7 @@ class MainWindow(QGraphicsView):
         
         #Check if starting items are valid
         
+        Manager.load_translation()
         self.starting_items = []
         for item in config.get("StartWith", "sStartItem").split(","):
             if not item:
@@ -2513,7 +2597,9 @@ class MainWindow(QGraphicsView):
         
         #Check DLC
         
+        Manager.load_file_info()
         self.owned_dlc = self.get_dlc_info()
+        self.update_file_info()
         
         #Prompt seed options
         
@@ -2666,6 +2752,12 @@ class MainWindow(QGraphicsView):
             self.notify_error("Game path invalid, input the path to your game's data\n(...\\steamapps\\common\\Bloodstained Ritual of the Night).")
             return
         
+        #Check DLC
+        
+        Manager.load_file_info()
+        self.owned_dlc = self.get_dlc_info()
+        self.update_file_info()
+        
         self.import_assets(list(Manager.file_to_path), self.import_finished)
 
     def import_assets(self, asset_list, finished):
@@ -2684,6 +2776,26 @@ class MainWindow(QGraphicsView):
     
     def import_finished(self):
         self.setEnabled(True)
+
+    def archipelago_button_clicked(self):
+        self.archi_check_box.setChecked(config.getboolean("Archipelago", "bEnable"))
+        self.archi_name_field.setText(config.get("Archipelago", "sName"))
+        self.progression_field.setValue(config.getint("Archipelago", "iProgression"))
+        self.accessibility_drop_down.setCurrentIndex(config.getint("Archipelago", "iAccessibility"))
+        self.death_link_check_box.setChecked(config.getboolean("Archipelago", "bDeathLink"))
+        self.archi_window = QDialog(self)
+        self.archi_window.setLayout(self.archi_window_layout)
+        self.archi_window.setWindowTitle("Archipelago")
+        self.archi_window.setFixedSize(self.size_multiplier*400, 0)
+        self.archi_window.exec()
+
+    def archi_apply_button_clicked(self):
+        config.set("Archipelago", "bEnable", str(self.archi_check_box.isChecked()).lower())
+        config.set("Archipelago", "sName", self.archi_name_field.text())
+        config.set("Archipelago", "iProgression", str(self.progression_field.value()))
+        config.set("Archipelago", "iAccessibility", str(self.accessibility_drop_down.currentIndex()))
+        config.set("Archipelago", "bDeathLink", str(self.death_link_check_box.isChecked()).lower())
+        self.archi_window.close()
 
     def credit_button_clicked(self):
         credit_1_layout = QHBoxLayout()
@@ -2804,20 +2916,17 @@ class MainWindow(QGraphicsView):
         try:
             api = requests.get("https://api.github.com/repos/Lakifume/True-Randomization/releases/latest").json()
         except requests.ConnectionError:
-            self.check_for_resolution()
-            return
+            return False
         try:
             tag = api["tag_name"]
         except KeyError:
-            self.check_for_resolution()
-            return
+            return False
         if tag != config.get("Misc", "sVersion"):
             choice = QMessageBox.question(self, "Auto Updater", "New version found:\n\n" + api["body"] + "\n\nUpdate ?", QMessageBox.Yes | QMessageBox.No)
             if choice == QMessageBox.Yes:
                 if "Map Editor.exe" in (program.name() for program in psutil.process_iter()):
                     self.notify_error("MapEditor.exe is running, cannot overwrite.")
-                    self.check_for_resolution()
-                    return
+                    return False
                 
                 self.progress_bar = QProgressDialog("Downloading...", None, 0, api["assets"][0]["size"], self)
                 self.progress_bar.setWindowTitle("Status")
@@ -2830,10 +2939,8 @@ class MainWindow(QGraphicsView):
                 self.worker.signaller.finished.connect(self.update_finished)
                 self.worker.signaller.error.connect(self.thread_failure)
                 self.worker.start()
-            else:
-                self.check_for_resolution()
-        else:
-            self.check_for_resolution()
+                return True
+        return False
     
     def check_for_resolution(self):
         if self.first_time:
